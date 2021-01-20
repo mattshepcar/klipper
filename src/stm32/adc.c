@@ -16,7 +16,9 @@
 DECL_CONSTANT("ADC_MAX", 4095);
 
 #define ADC_TEMPERATURE_PIN 0xfe
+#define ADC_VREF_PIN 0xfd
 DECL_ENUMERATION("pin", "ADC_TEMPERATURE", ADC_TEMPERATURE_PIN);
+DECL_ENUMERATION("pin", "ADC_VREF", ADC_VREF_PIN);
 
 static const uint8_t adc_pins[] = {
     GPIO('A', 0), GPIO('A', 1), GPIO('A', 2), GPIO('A', 3),
@@ -25,7 +27,7 @@ static const uint8_t adc_pins[] = {
     GPIO('C', 2), GPIO('C', 3), GPIO('C', 4), GPIO('C', 5),
 
 #if CONFIG_MACH_STM32F1
-    ADC_TEMPERATURE_PIN,
+    ADC_TEMPERATURE_PIN, ADC_VREF_PIN,
 #elif CONFIG_MACH_STM32F2 || CONFIG_MACH_STM32F407
     ADC_TEMPERATURE_PIN, 0x00, 0x00,
 #elif CONFIG_MACH_STM32F446
@@ -107,7 +109,7 @@ gpio_adc_setup(uint32_t pin)
         adc->CR2 = CR2_FLAGS;
     }
 
-    if (pin == ADC_TEMPERATURE_PIN) {
+    if (pin == ADC_TEMPERATURE_PIN || pin == ADC_VREF_PIN) {
 #if !CONFIG_MACH_STM32F1
         ADC123_COMMON->CCR = ADC_CCR_TSVREFE;
 #endif
