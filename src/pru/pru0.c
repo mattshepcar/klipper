@@ -53,7 +53,7 @@ build_message(uint8_t *msg, int msglen)
     if (transmit_pos + msglen > sizeof(transmit_buf))
         flush_messages();
     memcpy(&transmit_buf[transmit_pos], msg, msglen);
-    command_add_frame(&transmit_buf[transmit_pos], msglen);
+    command_add_frame(&transmit_buf[transmit_pos], msglen, MESSAGE_DEST);
     transmit_pos += msglen;
 }
 

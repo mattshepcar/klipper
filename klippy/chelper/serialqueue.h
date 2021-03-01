@@ -20,7 +20,8 @@
 #define MESSAGE_SYNC 0x7E
 
 struct queue_message {
-    int len;
+    uint8_t len;
+    uint8_t dest;
     uint8_t msg[MESSAGE_MAX];
     union {
         // Filled when on a command queue
@@ -48,6 +49,7 @@ struct pull_queue_message {
 
 struct serialqueue;
 struct serialqueue *serialqueue_alloc(int serial_fd, int write_only);
+struct serialqueue *serialqueue_alloc_slave(struct serialqueue *master);
 void serialqueue_exit(struct serialqueue *sq);
 void serialqueue_free(struct serialqueue *sq);
 struct command_queue *serialqueue_alloc_commandqueue(void);

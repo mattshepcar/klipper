@@ -13,7 +13,7 @@
 #include "command.h" // output_P
 #include "sched.h" // sched_is_shutdown
 
-static uint8_t next_sequence = MESSAGE_DEST;
+static uint8_t next_sequence = 0;
 
 static uint32_t
 command_encode_ptr(void *p)
@@ -173,10 +173,10 @@ error:
 
 // Add header and trailer bytes to a message block
 void
-command_add_frame(uint8_t *buf, uint_fast8_t msglen)
+command_add_frame(uint8_t *buf, uint_fast8_t msglen, uint_fast8_t endpoint_id)
 {
     buf[MESSAGE_POS_LEN] = msglen;
-    buf[MESSAGE_POS_SEQ] = next_sequence;
+    buf[MESSAGE_POS_SEQ] = next_sequence | endpoint_id;
     uint16_t crc = crc16_ccitt(buf, msglen - MESSAGE_TRAILER_SIZE);
     buf[msglen - MESSAGE_TRAILER_CRC + 0] = crc >> 8;
     buf[msglen - MESSAGE_TRAILER_CRC + 1] = crc;
@@ -189,7 +189,7 @@ command_encode_and_frame(uint8_t *buf, const struct command_encoder *ce
                          , va_list args)
 {
     uint_fast8_t msglen = command_encodef(buf, ce, args);
-    command_add_frame(buf, msglen);
+    command_add_frame(buf, msglen, MESSAGE_DEST);
     return msglen;
 }
 
@@ -253,9 +253,7 @@ command_find_block(uint8_t *buf, uint_fast8_t buf_len, uint_fast8_t *pop_count)
     uint_fast8_t msglen = buf[MESSAGE_POS_LEN];
     if (msglen < MESSAGE_MIN || msglen > MESSAGE_MAX)
         goto error;
-    uint_fast8_t msgseq = buf[MESSAGE_POS_SEQ];
-    if ((msgseq & ~MESSAGE_SEQ_MASK) != MESSAGE_DEST)
-        goto error;
+    uint_fast8_t msgseq = buf[MESSAGE_POS_SEQ] & MESSAGE_SEQ_MASK;
     if (buf_len < msglen)
         goto need_more_data;
     if (buf[msglen-MESSAGE_TRAILER_SYNC] != MESSAGE_SYNC)
@@ -272,7 +270,7 @@ command_find_block(uint8_t *buf, uint_fast8_t buf_len, uint_fast8_t *pop_count)
         // Lost message - discard messages until it is retransmitted
         goto nak;
     }
-    next_sequence = ((msgseq + 1) & MESSAGE_SEQ_MASK) | MESSAGE_DEST;
+    next_sequence = (msgseq + 1) & MESSAGE_SEQ_MASK;
     return 1;
 
 need_more_data:
@@ -330,6 +328,8 @@ command_send_ack(void)
     command_sendf(&encode_acknak);
 }
 
+void command_redirect(uint8_t *buf, uint8_t msglen);
+
 // Find a message block and then dispatch all the commands in it
 int_fast8_t
 command_find_and_dispatch(uint8_t *buf, uint_fast8_t buf_len
@@ -337,7 +337,13 @@ command_find_and_dispatch(uint8_t *buf, uint_fast8_t buf_len
 {
     int_fast8_t ret = command_find_block(buf, buf_len, pop_count);
     if (ret > 0) {
-        command_dispatch(buf, *pop_count);
+        uint_fast8_t endpoint_id = buf[MESSAGE_POS_SEQ] & ~MESSAGE_SEQ_MASK;
+        if (endpoint_id == MESSAGE_DEST)
+            command_dispatch(buf, *pop_count);
+#if CONFIG_USBHOST
+        else
+            command_redirect(buf, *pop_count);
+#endif
         command_send_ack();
     }
     return ret;

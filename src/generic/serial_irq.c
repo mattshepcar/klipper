@@ -75,20 +75,17 @@ void
 console_task(void)
 {
     uint_fast8_t rpos = readb(&receive_pos), pop_count;
-    int_fast8_t ret = command_find_block(receive_buf, rpos, &pop_count);
-    if (ret > 0)
-        command_dispatch(receive_buf, pop_count);
+    int_fast8_t ret = command_find_and_dispatch(receive_buf, rpos, &pop_count);
+
     if (ret) {
         console_pop_input(pop_count);
-        if (ret > 0)
-            command_send_ack();
     }
 }
 DECL_TASK(console_task);
 
-// Encode and transmit a "response" message
-void
-console_sendf(const struct command_encoder *ce, va_list args)
+// Allocate space in transmit buffer
+uint8_t*
+console_send_begin(uint_fast8_t max_size)
 {
     // Verify space for message
     uint_fast8_t tpos = readb(&transmit_pos), tmax = readb(&transmit_max);
@@ -97,11 +94,10 @@ console_sendf(const struct command_encoder *ce, va_list args)
         writeb(&transmit_max, 0);
         writeb(&transmit_pos, 0);
     }
-    uint_fast8_t max_size = READP(ce->max_size);
     if (tmax + max_size > sizeof(transmit_buf)) {
         if (tmax + max_size - tpos > sizeof(transmit_buf))
             // Not enough space for message
-            return;
+            return NULL;
         // Disable TX irq and move buffer
         writeb(&transmit_max, 0);
         tpos = readb(&transmit_pos);
@@ -111,12 +107,39 @@ console_sendf(const struct command_encoder *ce, va_list args)
         writeb(&transmit_max, tmax);
         serial_enable_tx_irq();
     }
+    return &transmit_buf[tmax];
+}
 
-    // Generate message
-    uint8_t *buf = &transmit_buf[tmax];
-    uint_fast8_t msglen = command_encode_and_frame(buf, ce, args);
+// Encode and transmit a "response" message
+void
+console_sendf(const struct command_encoder *ce, va_list args)
+{
+    uint8_t *buf = console_send_begin(READP(ce->max_size));
+    if (buf) {
+        uint_fast8_t msglen = command_encode_and_frame(buf, ce, args);
+        console_send_end(msglen);
+    }
+}
 
-    // Start message transmit
+// Start message transmit
+void
+console_send_end(uint_fast8_t msglen)
+{
+    uint_fast8_t tmax = readb(&transmit_max);
     writeb(&transmit_max, tmax + msglen);
     serial_enable_tx_irq();
+}
+
+// Frame and transmit raw response data
+void
+console_send_raw(uint_fast8_t endpoint_id, const void *msg, uint_fast8_t msglen)
+{
+    uint_fast8_t framed_len = msglen
+        + MESSAGE_HEADER_SIZE + MESSAGE_TRAILER_SIZE;
+    uint8_t *buf = console_send_begin(framed_len);
+    if (buf) {
+        memcpy(buf + MESSAGE_HEADER_SIZE, msg, msglen);
+        command_add_frame(buf, framed_len, endpoint_id);
+        console_send_end(framed_len);
+    }
 }
