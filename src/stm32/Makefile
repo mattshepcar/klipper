@@ -23,6 +23,7 @@ CFLAGS-$(CONFIG_USBHOST) += -Isrc/stm32/F4DISC_CDC_HOST/Middlewares/ST/STM32_USB
 CFLAGS-$(CONFIG_USBHOST) += -Isrc/stm32/F4DISC_CDC_HOST/Middlewares/ST/STM32_USB_Host_Library/Class/CDC/Inc
 CFLAGS-$(CONFIG_USBHOST) += -Isrc/stm32/F4DISC_CDC_HOST/USB_HOST/App
 CFLAGS-$(CONFIG_USBHOST) += -Isrc/stm32/F4DISC_CDC_HOST/USB_HOST/Target
+CFLAGS-$(CONFIG_USBHOST) += -DHAVE_COMMAND_REDIRECT
 CFLAGS += $(CFLAGS-y) -D$(MCU_UPPER) -mthumb -Ilib/cmsis-core -Ilib/fast-hash
 
 CFLAGS_klipper.elf += --specs=nano.specs --specs=nosys.specs
