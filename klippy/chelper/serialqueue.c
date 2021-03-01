@@ -537,10 +537,10 @@ handle_message(struct serialqueue *sq, double eventtime, int len)
             return -1;
     }
 
-    if (sq != handler)
+    if (sq != handler) {
         pthread_mutex_lock(&handler->lock);
-
-    handler->bytes_read += len;
+        handler->bytes_read += len;
+    }
 
     // Check for pending messages on notify_queue
     int must_wake = 0;
@@ -562,12 +562,14 @@ handle_message(struct serialqueue *sq, double eventtime, int len)
 
     // Process message
     if (len == MESSAGE_MIN) {
-        // Ack/nak message
-        if (sq->last_ack_seq < rseq)
-            sq->last_ack_seq = rseq;
-        else if (rseq > sq->ignore_nak_seq && !list_empty(&sq->sent_queue))
-            // Duplicate Ack is a Nak - do fast retransmit
-            pollreactor_update_timer(&sq->pr, SQPT_RETRANSMIT, PR_NOW);
+        if (sq->message_dest == dest) {
+            // Ack/nak message
+            if (sq->last_ack_seq < rseq)
+                sq->last_ack_seq = rseq;
+            else if (rseq > sq->ignore_nak_seq && !list_empty(&sq->sent_queue))
+                // Duplicate Ack is a Nak - do fast retransmit
+                pollreactor_update_timer(&sq->pr, SQPT_RETRANSMIT, PR_NOW);
+        }
     } else {
         // Data message - add to receive queue
         struct queue_message *qm = message_fill(sq->input_buf, len);
@@ -954,9 +956,7 @@ serialqueue_alloc_slave(struct serialqueue *master)
     list_init(&sq->receive_queue);
 
     // Debugging
-    list_init(&sq->old_sent);
     list_init(&sq->old_receive);
-    debug_queue_alloc(&sq->old_sent, DEBUG_QUEUE_SENT);
     debug_queue_alloc(&sq->old_receive, DEBUG_QUEUE_RECEIVE);
 
     int ret = pthread_mutex_init(&sq->lock, NULL);
@@ -988,13 +988,17 @@ fail:
 void __visible
 serialqueue_exit(struct serialqueue *sq)
 {
-    if (sq->master) // not applicable to slaves
-        return;
     pollreactor_do_exit(&sq->pr);
-    kick_bg_thread(sq);
-    int ret = pthread_join(sq->tid, NULL);
-    if (ret)
-        report_errno("pthread_join", ret);
+    if (sq->master) {
+        pthread_mutex_lock(&sq->lock);
+        check_wake_receive(sq);
+        pthread_mutex_unlock(&sq->lock);
+    } else {
+        kick_bg_thread(sq);
+        int ret = pthread_join(sq->tid, NULL);
+        if (ret)
+            report_errno("pthread_join", ret);
+    }
 }
 
 // Free all resources associated with a serialqueue
@@ -1006,18 +1010,20 @@ serialqueue_free(struct serialqueue *sq)
     if (!pollreactor_is_exit(&sq->pr))
         serialqueue_exit(sq);
     pthread_mutex_lock(&sq->lock);
-    message_queue_free(&sq->sent_queue);
-    message_queue_free(&sq->receive_queue);
-    message_queue_free(&sq->notify_queue);
-    message_queue_free(&sq->old_sent);
-    message_queue_free(&sq->old_receive);
-    while (!list_empty(&sq->pending_queues)) {
-        struct command_queue *cq = list_first_entry(
-            &sq->pending_queues, struct command_queue, node);
-        list_del(&cq->node);
-        message_queue_free(&cq->ready_queue);
-        message_queue_free(&cq->stalled_queue);
+    if (!sq->master) {
+        message_queue_free(&sq->sent_queue);
+        message_queue_free(&sq->notify_queue);
+        message_queue_free(&sq->old_sent);
+        while (!list_empty(&sq->pending_queues)) {
+            struct command_queue *cq = list_first_entry(
+                &sq->pending_queues, struct command_queue, node);
+            list_del(&cq->node);
+            message_queue_free(&cq->ready_queue);
+            message_queue_free(&cq->stalled_queue);
+        }
     }
+    message_queue_free(&sq->receive_queue);
+    message_queue_free(&sq->old_receive);
     pthread_mutex_unlock(&sq->lock);
     pollreactor_free(&sq->pr);
     free(sq);
