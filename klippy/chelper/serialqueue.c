@@ -698,6 +698,8 @@ build_and_send_command(struct serialqueue *sq, double eventtime)
                 }
             }
         }
+        if (!qm)
+            break;
         // Append message to outgoing command
         if (out->len + qm->len > sizeof(out->msg) - MESSAGE_TRAILER_SIZE)
             break;
