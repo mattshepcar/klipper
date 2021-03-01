@@ -340,7 +340,7 @@ command_find_and_dispatch(uint8_t *buf, uint_fast8_t buf_len
         uint_fast8_t endpoint_id = buf[MESSAGE_POS_SEQ] & ~MESSAGE_SEQ_MASK;
         if (endpoint_id == MESSAGE_DEST)
             command_dispatch(buf, *pop_count);
-#if CONFIG_USBHOST
+#if HAVE_COMMAND_REDIRECT
         else
             command_redirect(buf, *pop_count);
 #endif
