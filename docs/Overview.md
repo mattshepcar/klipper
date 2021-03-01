@@ -29,6 +29,8 @@ communication with the Klipper developers.
   - [BL-Touch](BLTouch.md): Configure a "BL-Touch" Z probe.
   - [Manual level](Manual_Level.md): Calibration of Z endstops (and
     similar).
+  - [Bed Mesh](Bed_Mesh.md): Bed height correction based on XY
+    locations.
   - [Endstop phase](Endstop_Phase.md): Stepper assisted Z endstop
     positioning.
 - [Resonance compensation](Resonance_Compensation.md): A tool to
@@ -68,6 +70,8 @@ communication with the Klipper developers.
 
 # Device Specific Documents
 
+- [SDCard Updates](SDCard_Updates.md): Flash a micro-controller by
+  copying a binary to an sdcard in the micro-controller.
 - [Raspberry Pi as Micro-controller](RPi_microcontroller.md): Details
   for controlling devices wired to the GPIO pins of a Raspberry Pi.
 - [Beaglebone](beaglebone.md): Details for running Klipper on the

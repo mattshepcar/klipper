@@ -2032,7 +2032,7 @@ sensor_pin:
 #   name in the above list.
 ```
 
-## bme280 temperature sensor
+## BME280 temperature sensor
 
 BME280 two wire interface (I2C) environmental sensor. Note that this
 sensor is not intended for use with extruders and heater beds, but
@@ -2043,7 +2043,7 @@ that may be used to report pressure and humidity in addition to
 temperature.
 
 ```
-sensor_type: bme280
+sensor_type: BME280
 #i2c_address:
 #   Default is 118 (0x76). Some BME280 sensors have an address of 119
 #   (0x77).
@@ -2145,12 +2145,33 @@ sensor_type: temperature_mcu
 #   micro-controller specification.
 ```
 
-## RPi temperature sensor
+## Host temperature sensor
 
-CPU temperature from the Raspberry Pi running the host software.
+Temperature from the machine (eg Raspberry Pi) running the host software.
 
 ```
-sensor_type: rpi_temperature
+sensor_type: temperature_host
+#sensor_path:
+#   The path to temperature system file. The default is
+#   "/sys/class/thermal/thermal_zone0/temp" which is the temperature
+#   system file on a Raspberry Pi computer.
+```
+
+## DS18B20 temperature sensor
+
+DS18B20 is a 1-wire (w1) digital temperature sensor. Note that this sensor is not intended for use with extruders and heater beds, but rather for monitoring ambient temperature (C). These sensors have range up to 125 C, so are usable for e.g. chamber temperature monitoring. They can also function as simple fan/heater controllers. DS18B20 sensors are only supported on the "host mcu", e.g. the Raspberry Pi. The w1-gpio Linux kernel module must be installed.
+
+```
+sensor_type: DS18B20
+serial_no:
+#   Each 1-wire device has a unique serial number used to identify the device,
+#   usually in the format 28-031674b175ff. This parameter must be provided.
+#   Attached 1-wire devices can be listed using the following Linux command:
+#   ls /sys/bus/w1/devices/
+#ds18_report_time:
+#   Interval in seconds between readings. Default is 3.0, with a minimum of 1.0
+#sensor_mcu:
+#   The micro-controller to read from. Must be the host_mcu
 ```
 
 # Fans
@@ -2559,6 +2580,12 @@ cs_pin:
 #spi_software_miso_pin:
 #   See the "common SPI settings" section for a description of the
 #   above parameters.
+#chain_position:
+#chain_length:
+#   These parameters configure an SPI daisy chain. The two parameters
+#   define the stepper position in the chain and the total chain length.
+#   Position 1 corresponds to the stepper that connects to the MOSI signal.
+#   The default is to not use an SPI daisy chain.
 #interpolate: True
 #   If true, enable step interpolation (the driver will internally
 #   step at a rate of 256 micro-steps). The default is True.
@@ -2801,6 +2828,12 @@ cs_pin:
 #spi_software_miso_pin:
 #   See the "common SPI settings" section for a description of the
 #   above parameters.
+#chain_position:
+#chain_length:
+#   These parameters configure an SPI daisy chain. The two parameters
+#   define the stepper position in the chain and the total chain length.
+#   Position 1 corresponds to the stepper that connects to the MOSI signal.
+#   The default is to not use an SPI daisy chain.
 #interpolate: True
 #   If true, enable step interpolation (the driver will internally
 #   step at a rate of 256 micro-steps). The default is True.
@@ -3025,6 +3058,11 @@ lcd_type:
 #   Controller" type displays), "uc1701" (which is used in "MKS Mini
 #   12864" type displays), "ssd1306", or "sh1106". This parameter must
 #   be provided.
+#hd44780_protocol_init: True
+#    Perform 8-bit/4-bit protocol initialization on an hd44780 display.
+#    This is necessary on real hd44780 devices.  However, one may
+#    need to disable this on some "clone" devices.  The default
+#    is True.
 #rs_pin:
 #e_pin:
 #d4_pin:

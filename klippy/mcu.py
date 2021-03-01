@@ -1,6 +1,6 @@
 # Interface to Klipper micro-controller code
 #
-# Copyright (C) 2016-2020  Kevin O'Connor <kevin@koconnor.net>
+# Copyright (C) 2016-2021  Kevin O'Connor <kevin@koconnor.net>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import sys, os, zlib, logging, math
@@ -427,18 +427,20 @@ class RetryAsyncCommand:
             query_time = self.reactor.monotonic()
             if query_time > first_query_time + self.TIMEOUT_TIME:
                 self.serial.register_response(None, self.name, self.oid)
-                raise error("Timeout on wait for '%s' response" % (self.name,))
+                raise serialhdl.error("Timeout on wait for '%s' response"
+                                      % (self.name,))
             self.serial.raw_send(cmd, minclock, minclock, cmd_queue)
 
 # Wrapper around query commands
 class CommandQueryWrapper:
     def __init__(self, serial, msgformat, respformat, oid=None,
-                 cmd_queue=None, is_async=False):
+                 cmd_queue=None, is_async=False, error=serialhdl.error):
         self._serial = serial
         self._cmd = serial.get_msgparser().lookup_command(msgformat)
         serial.get_msgparser().lookup_command(respformat)
         self._response = respformat.split()[0]
         self._oid = oid
+        self._error = error
         self._xmit_helper = serialhdl.SerialRetryCommand
         if is_async:
             self._xmit_helper = RetryAsyncCommand
@@ -452,7 +454,7 @@ class CommandQueryWrapper:
         try:
             return xh.get_response(cmd, self._cmd_queue, minclock, reqclock)
         except serialhdl.error as e:
-            raise error(str(e))
+            raise self._error(str(e))
 
 # Wrapper around command sending
 class CommandWrapper:
@@ -633,10 +635,11 @@ class MCU:
         return config_params
     def _log_info(self):
         msgparser = self._serial.get_msgparser()
+        message_count = len(msgparser.get_messages())
+        version, build_versions = msgparser.get_version_info()
         log_info = [
-            "Loaded MCU '%s' %d commands (%s / %s)" % (
-                self._name, len(msgparser.messages_by_id),
-                msgparser.version, msgparser.build_versions),
+            "Loaded MCU '%s' %d commands (%s / %s)"
+            % (self._name, message_count, version, build_versions),
             "MCU '%s' config: %s" % (self._name, " ".join(
                 ["%s=%s" % (k, v) for k, v in self.get_constants().items()]))]
         return "\n".join(log_info)
@@ -704,8 +707,9 @@ class MCU:
         mbaud = msgparser.get_constant('SERIAL_BAUD', None)
         if self._restart_method is None and mbaud is None and not ext_only:
             self._restart_method = 'command'
-        self._get_status_info['mcu_version'] = msgparser.version
-        self._get_status_info['mcu_build_versions'] = msgparser.build_versions
+        version, build_versions = msgparser.get_version_info()
+        self._get_status_info['mcu_version'] = version
+        self._get_status_info['mcu_build_versions'] = build_versions
         self._get_status_info['mcu_constants'] = msgparser.get_constants()
         self.register_response(self._handle_shutdown, 'shutdown')
         self.register_response(self._handle_shutdown, 'is_shutdown')
@@ -755,14 +759,15 @@ class MCU:
     def lookup_query_command(self, msgformat, respformat, oid=None,
                              cq=None, is_async=False):
         return CommandQueryWrapper(self._serial, msgformat, respformat, oid,
-                                   cq, is_async)
+                                   cq, is_async, self._printer.command_error)
     def try_lookup_command(self, msgformat):
         try:
             return self.lookup_command(msgformat)
         except self._serial.get_msgparser().error as e:
             return None
-    def lookup_command_id(self, msgformat):
-        return self._serial.get_msgparser().lookup_command(msgformat).msgid
+    def lookup_command_tag(self, msgformat):
+        all_msgs = self._serial.get_msgparser().get_messages()
+        return {fmt: msgtag for msgtag, msgtype, fmt in all_msgs}[msgformat]
     def get_enumerations(self):
         return self._serial.get_msgparser().get_enumerations()
     def get_constants(self):
