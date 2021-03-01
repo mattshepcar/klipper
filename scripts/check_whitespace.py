@@ -61,8 +61,7 @@ def check_file(filename):
 def main():
     files = sys.argv[1:]
     for filename in files:
-        if 'F4DISC' not in filename:
-            check_file(filename)
+        check_file(filename)
     if HaveError:
         sys.stderr.write("\n\n")
         sys.exit(-1)
