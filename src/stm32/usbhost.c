@@ -168,7 +168,7 @@ void USBH_CDC_ReceiveCallback(USBH_HandleTypeDef *phost, int length)
       if (ret == 0)
         break;
       if (ret > 0) {
-        if (next_sequence == 0)
+        //if (next_sequence == 0)
           next_sequence = receive_buf[MESSAGE_POS_SEQ];
         // forward packet to klippy
         console_send_raw(0x20, &receive_buf[pos + MESSAGE_HEADER_SIZE],
