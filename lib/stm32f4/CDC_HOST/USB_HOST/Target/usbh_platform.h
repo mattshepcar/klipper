@@ -27,7 +27,7 @@
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include "usb_host.h"
+//#include "usb_host.h"
 
 /* USER CODE BEGIN INCLUDE */
 
