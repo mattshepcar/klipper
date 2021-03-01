@@ -224,7 +224,7 @@ crc16_ccitt(uint8_t *buf, uint8_t len)
 
 // Verify a buffer starts with a valid mcu message
 static int
-check_message(uint8_t *need_sync, uint8_t *buf, int buf_len)
+check_message(uint8_t *need_sync, uint8_t *dest, uint8_t *buf, int buf_len)
 {
     if (buf_len < MESSAGE_MIN)
         // Need more data
@@ -235,8 +235,7 @@ check_message(uint8_t *need_sync, uint8_t *buf, int buf_len)
     if (msglen < MESSAGE_MIN || msglen > MESSAGE_MAX)
         goto error;
     uint8_t msgseq = buf[MESSAGE_POS_SEQ];
-    if ((msgseq & ~MESSAGE_SEQ_MASK) != MESSAGE_DEST)
-        goto error;
+    *dest = msgseq & ~MESSAGE_SEQ_MASK;
     if (buf_len < msglen)
         // Need more data
         return 0;
@@ -386,6 +385,10 @@ struct serialqueue {
     struct list_head old_sent, old_receive;
     // Stats
     uint32_t bytes_write, bytes_read, bytes_retransmit, bytes_invalid;
+    // Redirect queue
+    uint8_t message_dest;
+    struct serialqueue* master;
+    struct serialqueue* next_slave;
 };
 
 #define SQPF_SERIAL 0
@@ -525,21 +528,36 @@ handle_message(struct serialqueue *sq, double eventtime, int len)
         update_receive_seq(sq, eventtime, rseq);
     }
 
+    // Find the correct queue to handle this message
+    uint_fast8_t dest = sq->input_buf[MESSAGE_POS_SEQ] & ~MESSAGE_SEQ_MASK;
+    struct serialqueue *handler = sq;
+    while (handler->message_dest != dest) {
+        handler = handler->next_slave;
+        if (!handler)
+            return -1;
+    }
+
+    if (sq != handler)
+        pthread_mutex_lock(&handler->lock);
+
+    handler->bytes_read += len;
+
     // Check for pending messages on notify_queue
     int must_wake = 0;
-    while (!list_empty(&sq->notify_queue)) {
-        struct queue_message *qm = list_first_entry(
-            &sq->notify_queue, struct queue_message, node);
+    struct queue_message *qm, *n;
+    list_for_each_entry_safe(qm, n, &sq->notify_queue, node) {
         uint64_t wake_seq = rseq - 1 - (len > MESSAGE_MIN ? 1 : 0);
         uint64_t notify_msg_sent_seq = qm->req_clock;
         if (notify_msg_sent_seq > wake_seq)
             break;
-        list_del(&qm->node);
-        qm->len = 0;
-        qm->sent_time = sq->last_receive_sent_time;
-        qm->receive_time = eventtime;
-        list_add_tail(&qm->node, &sq->receive_queue);
-        must_wake = 1;
+        if (qm->dest == dest) {
+            list_del(&qm->node);
+            qm->len = 0;
+            qm->sent_time = sq->last_receive_sent_time;
+            qm->receive_time = eventtime;
+            list_add_tail(&qm->node, &handler->receive_queue);
+            must_wake = 1;
+        }
     }
 
     // Process message
@@ -557,12 +575,16 @@ handle_message(struct serialqueue *sq, double eventtime, int len)
                          ? sq->last_receive_sent_time : 0.);
         qm->receive_time = get_monotonic(); // must be time post read()
         qm->receive_time -= sq->baud_adjust * len;
-        list_add_tail(&qm->node, &sq->receive_queue);
+        list_add_tail(&qm->node, &handler->receive_queue);
         must_wake = 1;
     }
 
     if (must_wake)
-        check_wake_receive(sq);
+        check_wake_receive(handler);
+
+    if (sq != handler)
+        pthread_mutex_unlock(&handler->lock);
+
     return 0;
 }
 
@@ -579,7 +601,9 @@ input_event(struct serialqueue *sq, double eventtime)
     }
     sq->input_pos += ret;
     for (;;) {
-        int len = check_message(&sq->need_sync, sq->input_buf, sq->input_pos);
+        uint8_t dest;
+        int len = check_message(&sq->need_sync, &dest,
+                            sq->input_buf, sq->input_pos);
         if (!len)
             // Need more data
             return;
@@ -670,6 +694,7 @@ static int
 build_and_send_command(struct serialqueue *sq, uint8_t *buf, double eventtime)
 {
     int len = MESSAGE_HEADER_SIZE;
+    uint_fast8_t dest = 0;
     while (sq->ready_bytes) {
         // Find highest priority message (message with lowest req_clock)
         uint64_t min_clock = MAX_CLOCK;
@@ -679,7 +704,8 @@ build_and_send_command(struct serialqueue *sq, uint8_t *buf, double eventtime)
             if (!list_empty(&q->ready_queue)) {
                 struct queue_message *m = list_first_entry(
                     &q->ready_queue, struct queue_message, node);
-                if (m->req_clock < min_clock) {
+                if (m->req_clock < min_clock &&
+                    (dest == 0 || m->dest == dest)) {
                     min_clock = m->req_clock;
                     cq = q;
                     qm = m;
@@ -689,6 +715,7 @@ build_and_send_command(struct serialqueue *sq, uint8_t *buf, double eventtime)
         // Append message to outgoing command
         if (len + qm->len > MESSAGE_MAX - MESSAGE_TRAILER_SIZE)
             break;
+        dest = qm->dest;
         list_del(&qm->node);
         if (list_empty(&cq->ready_queue) && list_empty(&cq->stalled_queue))
             list_del(&cq->node);
@@ -707,7 +734,7 @@ build_and_send_command(struct serialqueue *sq, uint8_t *buf, double eventtime)
     // Fill header / trailer
     len += MESSAGE_TRAILER_SIZE;
     buf[MESSAGE_POS_LEN] = len;
-    buf[MESSAGE_POS_SEQ] = MESSAGE_DEST | (sq->send_seq & MESSAGE_SEQ_MASK);
+    buf[MESSAGE_POS_SEQ] = dest | (sq->send_seq & MESSAGE_SEQ_MASK);
     uint16_t crc = crc16_ccitt(buf, len - MESSAGE_TRAILER_SIZE);
     buf[len - MESSAGE_TRAILER_CRC] = crc >> 8;
     buf[len - MESSAGE_TRAILER_CRC+1] = crc & 0xff;
@@ -856,6 +883,9 @@ serialqueue_alloc(int serial_fd, int write_only)
     struct serialqueue *sq = malloc(sizeof(*sq));
     memset(sq, 0, sizeof(*sq));
 
+    // Address
+    sq->message_dest = MESSAGE_DEST;
+
     // Reactor setup
     sq->serial_fd = serial_fd;
     int ret = pipe(sq->pipe_fds);
@@ -863,7 +893,7 @@ serialqueue_alloc(int serial_fd, int write_only)
         goto fail;
     pollreactor_setup(&sq->pr, SQPF_NUM, SQPT_NUM, sq);
     pollreactor_add_fd(&sq->pr, SQPF_SERIAL, serial_fd, input_event
-                       , write_only);
+                        , write_only);
     pollreactor_add_fd(&sq->pr, SQPF_PIPE, sq->pipe_fds[0], kick_event, 0);
     pollreactor_add_timer(&sq->pr, SQPT_RETRANSMIT, retransmit_event);
     pollreactor_add_timer(&sq->pr, SQPT_COMMAND, command_event);
@@ -912,10 +942,52 @@ fail:
     return NULL;
 }
 
+struct serialqueue * __visible
+serialqueue_alloc_slave(struct serialqueue *master)
+{
+    struct serialqueue *sq = malloc(sizeof(*sq));
+    memset(sq, 0, sizeof(*sq));
+
+    // Queues
+    list_init(&sq->receive_queue);
+
+    // Debugging
+    list_init(&sq->old_sent);
+    list_init(&sq->old_receive);
+    debug_queue_alloc(&sq->old_sent, DEBUG_QUEUE_SENT);
+    debug_queue_alloc(&sq->old_receive, DEBUG_QUEUE_RECEIVE);
+
+    int ret = pthread_mutex_init(&sq->lock, NULL);
+    if (ret)
+        goto fail;
+    ret = pthread_cond_init(&sq->cond, NULL);
+    if (ret)
+        goto fail;
+
+    // add slave to master's list
+    sq->master = master;
+    sq->next_slave = master->next_slave;
+    master->next_slave = sq;
+
+    // assign message_dest for slave
+    uint8_t message_dest = master->message_dest;
+    if (sq->next_slave)
+        message_dest = sq->next_slave->message_dest;
+    sq->message_dest = message_dest + 0x10;
+
+    return sq;
+
+fail:
+    report_errno("init", ret);
+    return NULL;
+}
+
 // Request that the background thread exit
 void __visible
 serialqueue_exit(struct serialqueue *sq)
 {
+    if (sq->master) // not applicable to slaves
+        return;
     pollreactor_do_exit(&sq->pr);
     kick_bg_thread(sq);
     int ret = pthread_join(sq->tid, NULL);
@@ -985,11 +1057,16 @@ serialqueue_send_batch(struct serialqueue *sq, struct command_queue *cq
         if (qm->min_clock + (1LL<<31) < qm->req_clock
             && qm->req_clock != BACKGROUND_PRIORITY_CLOCK)
             qm->min_clock = qm->req_clock - (1LL<<31);
+        qm->dest = sq->message_dest;
         len += qm->len;
     }
     if (! len)
         return;
     qm = list_first_entry(msgs, struct queue_message, node);
+
+    // Send via the master MCU
+    if (sq->master)
+        sq = sq->master;
 
     // Add list to cq->stalled_queue
     pthread_mutex_lock(&sq->lock);

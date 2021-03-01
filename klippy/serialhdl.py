@@ -11,6 +11,8 @@ import msgproto, chelper, util
 class error(Exception):
     pass
 
+serialports = {}
+
 class SerialReader:
     BITS_PER_BYTE = 10.
     def __init__(self, reactor, serialport, baud, rts=True):
@@ -36,6 +38,7 @@ class SerialReader:
         # Sent message notification tracking
         self.last_notify_id = 0
         self.pending_notifications = {}
+        serialports[serialport] = self
     def _bg_thread(self):
         response = self.ffi_main.new('struct pull_queue_message *')
         while 1:
@@ -77,30 +80,40 @@ class SerialReader:
                 identify_data += msgdata
     def connect(self):
         # Initial connection
-        logging.info("Starting serial connect")
+        logging.info("Starting serial connect to " + self.serialport)
         start_time = self.reactor.monotonic()
         while 1:
             connect_time = self.reactor.monotonic()
             if connect_time > start_time + 90.:
                 raise error("Unable to connect")
-            try:
+            if ":slave" in self.serialport:
+                master, slave = self.serialport.rsplit(':', 1)
+                if master not in serialports:
+                    raise error("Unknown serial port" % (master,))
+                master = serialports[master]
+                logging.info("SLAVE connection via " + master.serialport)
+                self.serialqueue = self.ffi_main.gc(
+                    self.ffi_lib.serialqueue_alloc_slave(master.serialqueue),
+                    self.ffi_lib.serialqueue_free)
+            else:
+                try:
+                    if self.baud:
+                        self.ser = serial.Serial(
+                            baudrate=self.baud, timeout=0, exclusive=True)
+                        self.ser.port = self.serialport
+                        self.ser.rts = self.rts
+                        self.ser.open()
+                    else:
+                        self.ser = open(self.serialport, 'rb+', buffering=0)
+                except (OSError, IOError, serial.SerialException) as e:
+                    logging.warn("Unable to open port: %s", e)
+                    self.reactor.pause(connect_time + 5.)
+                    continue
                 if self.baud:
-                    self.ser = serial.Serial(
-                        baudrate=self.baud, timeout=0, exclusive=True)
-                    self.ser.port = self.serialport
-                    self.ser.rts = self.rts
-                    self.ser.open()
-                else:
-                    self.ser = open(self.serialport, 'rb+', buffering=0)
-            except (OSError, IOError, serial.SerialException) as e:
-                logging.warn("Unable to open port: %s", e)
-                self.reactor.pause(connect_time + 5.)
-                continue
-            if self.baud:
-                stk500v2_leave(self.ser, self.reactor)
-            self.serialqueue = self.ffi_main.gc(
-                self.ffi_lib.serialqueue_alloc(self.ser.fileno(), 0),
-                self.ffi_lib.serialqueue_free)
+                    stk500v2_leave(self.ser, self.reactor)
+                self.serialqueue = self.ffi_main.gc(
+                    self.ffi_lib.serialqueue_alloc(self.ser.fileno(), 0),
+                    self.ffi_lib.serialqueue_free)
             self.background_thread = threading.Thread(target=self._bg_thread)
             self.background_thread.start()
             # Obtain and load the data dictionary from the firmware

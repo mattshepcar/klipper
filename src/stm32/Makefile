@@ -17,6 +17,12 @@ CFLAGS-$(CONFIG_MACH_STM32F1) += -mcpu=cortex-m3 -Ilib/stm32f1/include
 CFLAGS-$(CONFIG_MACH_STM32F2) += -mcpu=cortex-m3 -Ilib/stm32f2/include
 CFLAGS-$(CONFIG_MACH_STM32F4) += -mcpu=cortex-m4 -Ilib/stm32f4/include
 CFLAGS-$(CONFIG_MACH_STM32F4) += -mfpu=fpv4-sp-d16 -mfloat-abi=hard
+CFLAGS-$(CONFIG_USBHOST) += -Isrc/stm32/F4DISC_CDC_HOST/Core/Inc
+CFLAGS-$(CONFIG_USBHOST) += -Isrc/stm32/F4DISC_CDC_HOST/Drivers/STM32F4xx_HAL_Driver/Inc
+CFLAGS-$(CONFIG_USBHOST) += -Isrc/stm32/F4DISC_CDC_HOST/Middlewares/ST/STM32_USB_Host_Library/Core/Inc
+CFLAGS-$(CONFIG_USBHOST) += -Isrc/stm32/F4DISC_CDC_HOST/Middlewares/ST/STM32_USB_Host_Library/Class/CDC/Inc
+CFLAGS-$(CONFIG_USBHOST) += -Isrc/stm32/F4DISC_CDC_HOST/USB_HOST/App
+CFLAGS-$(CONFIG_USBHOST) += -Isrc/stm32/F4DISC_CDC_HOST/USB_HOST/Target
 CFLAGS += $(CFLAGS-y) -D$(MCU_UPPER) -mthumb -Ilib/cmsis-core -Ilib/fast-hash
 
 CFLAGS_klipper.elf += --specs=nano.specs --specs=nosys.specs
@@ -43,6 +49,23 @@ src-$(CONFIG_HAVE_GPIO_SPI) += stm32/spi.c
 usb-src-$(CONFIG_HAVE_STM32_USBFS) := stm32/usbfs.c
 usb-src-$(CONFIG_HAVE_STM32_USBOTG) := stm32/usbotg.c
 src-$(CONFIG_USBSERIAL) += $(usb-src-y) stm32/chipid.c generic/usb_cdc.c
+#src-$(CONFIG_USBHOST) += generic/usbhost.c stm32/usbotg.c
+#dirs-$(CONFIG_USBHOST) += F4DISC_CDC_HOST
+dirs-$(CONFIG_USBHOST) += src/stm32/F4DISC_CDC_HOST/USB_HOST/App
+src-$(CONFIG_USBHOST) += stm32/F4DISC_CDC_HOST/USB_HOST/App/usb_host.c
+dirs-$(CONFIG_USBHOST) += src/stm32/F4DISC_CDC_HOST/Middlewares/ST/STM32_USB_Host_Library/Core/Src
+src-$(CONFIG_USBHOST) += stm32/F4DISC_CDC_HOST/Middlewares/ST/STM32_USB_Host_Library/Core/Src/usbh_core.c
+src-$(CONFIG_USBHOST) += stm32/F4DISC_CDC_HOST/Middlewares/ST/STM32_USB_Host_Library/Core/Src/usbh_pipes.c
+src-$(CONFIG_USBHOST) += stm32/F4DISC_CDC_HOST/Middlewares/ST/STM32_USB_Host_Library/Core/Src/usbh_ctlreq.c
+src-$(CONFIG_USBHOST) += stm32/F4DISC_CDC_HOST/Middlewares/ST/STM32_USB_Host_Library/Core/Src/usbh_ioreq.c
+dirs-$(CONFIG_USBHOST) += src/stm32/F4DISC_CDC_HOST/Middlewares/ST/STM32_USB_Host_Library/Class/CDC/Src
+src-$(CONFIG_USBHOST) += stm32/F4DISC_CDC_HOST/Middlewares/ST/STM32_USB_Host_Library/Class/CDC/Src/usbh_cdc.c
+dirs-$(CONFIG_USBHOST) += src/stm32/F4DISC_CDC_HOST/USB_HOST/Target
+src-$(CONFIG_USBHOST) += stm32/F4DISC_CDC_HOST/USB_HOST/Target/usbh_conf.c
+dirs-$(CONFIG_USBHOST) += src/stm32/F4DISC_CDC_HOST/Drivers/STM32F4xx_HAL_Driver/Src
+src-$(CONFIG_USBHOST) += stm32/F4DISC_CDC_HOST/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c
+src-$(CONFIG_USBHOST) += stm32/F4DISC_CDC_HOST/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_hcd.c
+src-$(CONFIG_USBHOST) += stm32/F4DISC_CDC_HOST/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c
 serial-src-y := stm32/serial.c
 serial-src-$(CONFIG_MACH_STM32F0) := stm32/stm32f0_serial.c
 src-$(CONFIG_SERIAL) += $(serial-src-y) generic/serial_irq.c

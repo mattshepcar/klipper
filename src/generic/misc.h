@@ -6,7 +6,11 @@
 
 struct command_encoder;
 void console_sendf(const struct command_encoder *ce, va_list args);
+void console_send_raw(uint_fast8_t endpoint_id, const void *msg,
+                      uint_fast8_t msglen);
 void *console_receive_buffer(void);
+uint8_t *console_send_begin(uint_fast8_t max_size);
+void console_send_end(uint_fast8_t msglen);
 
 uint32_t timer_from_us(uint32_t us);
 uint8_t timer_is_before(uint32_t time1, uint32_t time2);

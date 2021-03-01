@@ -186,7 +186,10 @@ config USBSERIAL
     bool "Use USB for communication (instead of serial)"
     depends on HAVE_STM32_USBFS || HAVE_STM32_USBOTG
     default y
-
+config USBHOST
+    bool "Enable USB host pass through for slave MCU"
+    depends on HAVE_STM32_USBOTG && !USBSERIAL
+    default y
 config CANSERIAL
     bool "Use CAN for communication (instead of serial)"
     depends on !USBSERIAL
