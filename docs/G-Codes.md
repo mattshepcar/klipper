@@ -474,7 +474,7 @@ enabled:
   carriage. It is typically invoked from the activate_gcode and
   deactivate_gcode fields in a multiple extruder configuration.
 
-## TMC2130, TMC2660, TMC2208, TMC2209 and TMC5160
+## TMC stepper drivers
 
 The following commands are available when any of the
 [tmcXXXX config sections](Config_Reference.md#tmc-stepper-driver-configuration)
@@ -486,14 +486,14 @@ are enabled:
   turned off then back on.
 - `SET_TMC_CURRENT STEPPER=<name> CURRENT=<amps> HOLDCURRENT=<amps>`:
   This will adjust the run and hold currents of the TMC driver.
-  HOLDCURRENT is applicable only to the tmc2130, tmc2208, tmc2209 and tmc5160.
-- `SET_TMC_FIELD STEPPER=<name> FIELD=<field> VALUE=<value>`: This will
-  alter the value of the specified register field of the TMC driver.
-  This command is intended for low-level diagnostics and debugging only because
-  changing the fields during run-time can lead to undesired and potentially
-  dangerous behavior of your printer. Permanent changes should be made using
-  the printer configuration file instead. No sanity checks are performed for the
-  given values.
+  (HOLDCURRENT is not applicable to tmc2660 drivers.)
+- `SET_TMC_FIELD STEPPER=<name> FIELD=<field> VALUE=<value>`: This
+  will alter the value of the specified register field of the TMC
+  driver. This command is intended for low-level diagnostics and
+  debugging only because changing the fields during run-time can lead
+  to undesired and potentially dangerous behavior of your printer.
+  Permanent changes should be made using the printer configuration
+  file instead. No sanity checks are performed for the given values.
 
 ## Endstop adjustments by stepper phase
 
@@ -574,7 +574,7 @@ enabled:
 ## Filament Sensor
 
 The following command is available when the
-[filament_switch_sensor config section](Config_Reference.md#filament_switch_sensor)
+[filament_switch_sensor or filament_motion_sensor config section](Config_Reference.md#filament_switch_sensor)
 is enabled.
 - `QUERY_FILAMENT_SENSOR SENSOR=<sensor_name>`: Queries the current
   status of the filament sensor. The data displayed on the terminal
@@ -760,3 +760,27 @@ is enabled (also see the
   defaults to the current time in "YYYYMMDD_HHMMSS" format. Note that
   the suggested input shaper parameters can be persisted in the config
   by issuing `SAVE_CONFIG` command.
+
+## Palette 2 Commands
+
+The following command is available when the
+[palette2 config section](Config_Reference.md#palette2)
+is enabled:
+- `PALETTE_CONNECT`: This command initializes the connection with
+  the Palette 2.
+- `PALETTE_DISCONNECT`: This command disconnects from the Palette 2.
+- `PALETTE_CLEAR`: This command instructs the Palette 2 to clear all of the
+  input and output paths of filament.
+- `PALETTE_CUT`: This command instructs the Palette 2 to cut the filament
+  currently loaded in the splice core.
+- `PALETTE_SMART_LOAD`: This command start the smart load sequence on the
+  Palette 2. Filament is loaded automatically by extruding it the distance
+  calibrated on the device for the printer, and instructs the Palette 2
+  once the loading has been completed. This command is the same as pressing
+  **Smart Load** directly on the Palette 2 screen after the filament load
+  is complete.
+
+Palette prints work by embedding special OCodes (Omega Codes)
+in the GCode file:
+- `O1`...`O32`: These codes are read from the GCode stream and processed
+  by this module and passed to the Palette 2 device.

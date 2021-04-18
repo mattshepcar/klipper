@@ -48,7 +48,8 @@ struct pull_queue_message {
 };
 
 struct serialqueue;
-struct serialqueue *serialqueue_alloc(int serial_fd, int write_only);
+struct serialqueue *serialqueue_alloc(int serial_fd, char serial_fd_type
+                                      , int client_id);
 struct serialqueue *serialqueue_alloc_slave(struct serialqueue *master);
 void serialqueue_exit(struct serialqueue *sq);
 void serialqueue_free(struct serialqueue *sq);
