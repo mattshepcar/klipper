@@ -21,7 +21,7 @@
  * USB transfer memory
  ****************************************************************/
 
-#if CONFIG_MACH_STM32F103
+#if CONFIG_MACH_STM32F103 || CONFIG_MACH_GD32F150
 typedef volatile uint32_t epmword_t;
 #else
 typedef volatile uint16_t epmword_t;
@@ -239,6 +239,7 @@ USB_IRQHandler(void)
 {
     uint32_t istr = USB->ISTR;
     if (istr & USB_ISTR_CTR) {
+        GPIOA->ODR ^= 2;
         // Endpoint activity
         uint32_t ep = istr & USB_ISTR_EP_ID;
         uint32_t epr = USB_EPR[ep];
@@ -293,7 +294,7 @@ usb_init(void)
     USB->DADDR = 0;
     USB->CNTR = USB_CNTR_RESETM;
     USB->ISTR = 0;
-#if CONFIG_MACH_STM32F103
+#if CONFIG_MACH_STM32F103 || CONFIG_MACH_GD32F150
     armcm_enable_irq(USB_IRQHandler, USB_LP_IRQn, 1);
 #elif CONFIG_MACH_STM32F0
     armcm_enable_irq(USB_IRQHandler, USB_IRQn, 1);

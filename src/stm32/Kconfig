@@ -55,6 +55,8 @@ choice
     config MACH_STM32F070
         bool "STM32F070"
         select MACH_STM32F0
+    config MACH_GD32F150
+        bool "GD32F150"
 endchoice
 
 config MACH_STM32F0
@@ -67,7 +69,7 @@ config MACH_STM32F4
     bool
 config HAVE_STM32_USBFS
     bool
-    default y if MACH_STM32F103 || MACH_STM32F042 || MACH_STM32F070
+    default y if MACH_STM32F103 || MACH_STM32F042 || MACH_STM32F070 || MACH_GD32F150
 config HAVE_STM32_USBOTG
     bool
     default y if MACH_STM32F2 || MACH_STM32F4
@@ -87,12 +89,13 @@ config MCU
     default "stm32f407xx" if MACH_STM32F407
     default "stm32f429xx" if MACH_STM32F429
     default "stm32f446xx" if MACH_STM32F446
+    default "gd32f150" if MACH_GD32F150
 
 config CLOCK_FREQ
     int
     default 48000000 if MACH_STM32F0
     default 64000000 if MACH_STM32F103 && STM32_CLOCK_REF_INTERNAL
-    default 72000000 if MACH_STM32F103
+    default 72000000 if MACH_STM32F103 || MACH_GD32F150
     default 120000000 if MACH_STM32F207
     default 84000000 if MACH_STM32F401
     default 168000000 if MACH_STM32F405 || MACH_STM32F407 || MACH_STM32F429
@@ -103,7 +106,7 @@ config FLASH_SIZE
     default 0x4000 if MACH_STM32F031
     default 0x8000 if MACH_STM32F042
     default 0x20000 if MACH_STM32F070
-    default 0x10000 if MACH_STM32F103 # Flash size of stm32f103x8 (64KiB)
+    default 0x10000 if MACH_STM32F103 || MACH_GD32F150 # Flash size of stm32f103x8 (64KiB)
     default 0x40000 if MACH_STM32F2 || MACH_STM32F401
     default 0x80000 if MACH_STM32F405 || MACH_STM32F407 || MACH_STM32F429 || MACH_STM32F446
 
@@ -115,6 +118,7 @@ config RAM_SIZE
     hex
     default 0x1000 if MACH_STM32F031
     default 0x1800 if MACH_STM32F042
+    default 0x2000 if MACH_GD32F150
     default 0x4000 if MACH_STM32F070
     default 0x5000 if MACH_STM32F103 # Ram size of stm32f103x8 (20KiB)
     default 0x20000 if MACH_STM32F207

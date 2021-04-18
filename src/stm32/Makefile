@@ -8,6 +8,7 @@ dirs-$(CONFIG_MACH_STM32F0) += lib/stm32f0
 dirs-$(CONFIG_MACH_STM32F1) += lib/stm32f1
 dirs-$(CONFIG_MACH_STM32F2) += lib/stm32f2
 dirs-$(CONFIG_MACH_STM32F4) += lib/stm32f4
+dirs-$(CONFIG_MACH_GD32F150)) += lib/gd32f150
 
 MCU := $(shell echo $(CONFIG_MCU))
 MCU_UPPER := $(shell echo $(CONFIG_MCU) | tr a-z A-Z | tr X x)
@@ -17,6 +18,7 @@ CFLAGS-$(CONFIG_MACH_STM32F1) += -mcpu=cortex-m3 -Ilib/stm32f1/include
 CFLAGS-$(CONFIG_MACH_STM32F2) += -mcpu=cortex-m3 -Ilib/stm32f2/include
 CFLAGS-$(CONFIG_MACH_STM32F4) += -mcpu=cortex-m4 -Ilib/stm32f4/include
 CFLAGS-$(CONFIG_MACH_STM32F4) += -mfpu=fpv4-sp-d16 -mfloat-abi=hard
+CFLAGS-$(CONFIG_MACH_GD32F150) += -mcpu=cortex-m3 -Ilib/gd32f150/include
 CFLAGS += $(CFLAGS-y) -D$(MCU_UPPER) -mthumb -Ilib/cmsis-core -Ilib/fast-hash
 
 CFLAGS_klipper.elf += --specs=nano.specs --specs=nosys.specs
@@ -39,6 +41,8 @@ src-$(CONFIG_MACH_STM32F2) += stm32/adc.c stm32/i2c.c
 src-$(CONFIG_MACH_STM32F4) += ../lib/stm32f4/system_stm32f4xx.c
 src-$(CONFIG_MACH_STM32F4) += stm32/stm32f4.c generic/armcm_timer.c
 src-$(CONFIG_MACH_STM32F4) += stm32/adc.c stm32/i2c.c
+src-$(CONFIG_MACH_GD32F150) += stm32/gd32f150.c generic/armcm_timer.c
+src-$(CONFIG_MACH_GD32F150) += stm32/stm32f0_adc.c stm32/stm32f0_i2c.c
 src-$(CONFIG_HAVE_GPIO_SPI) += stm32/spi.c
 usb-src-$(CONFIG_HAVE_STM32_USBFS) := stm32/usbfs.c
 usb-src-$(CONFIG_HAVE_STM32_USBOTG) := stm32/usbotg.c
